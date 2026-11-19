@@ -1,0 +1,19 @@
+
+---
+# Standardized runner tool configuration
+
+nodejs_version: "22.23.5"
+python_version: "3.12"
+vault_version: "2.2.2"
+
+runner_packages:
+  - git
+  - curl
+  - wget
+  - jq
+  - unzip
+  - python3.12
+  - ca-certificates
+  - gnupg
+  - xz-utils
+

@@ -1,0 +1,129 @@
+---
+- name: Update APT package cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Install standard runner packages
+  ansible.builtin.apt:
+    name: "{{ runner_packages }}"
+    state: present
+  become: true
+
+- name: Create Node.js installation directory
+  ansible.builtin.file:
+    path: /opt/nodejs
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Download Node.js archive
+  ansible.builtin.get_url:
+    url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-x64.tar.xz"
+    dest: "/tmp/node-v{{ nodejs_version }}-linux-x64.tar.xz"
+    checksum: "sha256:cdeb8670a0c81f51b4dc4ac61919f9b1ad917b304bf8221eb939570663d240f8"
+    mode: "0644"
+  become: true
+
+- name: Extract Node.js archive
+  ansible.builtin.unarchive:
+    src: "/tmp/node-v{{ nodejs_version }}-linux-x64.tar.xz"
+    dest: /opt/nodejs
+    remote_src: true
+    creates: "/opt/nodejs/node-v{{ nodejs_version }}-linux-x64/bin/node"
+  become: true
+
+- name: Link Node.js executables
+  ansible.builtin.file:
+    src: "/opt/nodejs/node-v{{ nodejs_version }}-linux-x64/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+    force: true
+  loop:
+    - node
+    - npm
+    - npx
+  become: true
+
+- name: Download Vault archive
+  ansible.builtin.get_url:
+    url: "https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_amd64.zip"
+    dest: "/tmp/vault_{{ vault_version }}_linux_amd64.zip"
+    checksum: "sha256:5700edf139113609962fe371af7d2a53de8ecb720d545dc39b43de204515d3c4"
+    mode: "0644"
+  become: true
+
+- name: Install Vault binary
+  ansible.builtin.unarchive:
+    src: "/tmp/vault_{{ vault_version }}_linux_amd64.zip"
+    dest: /usr/local/bin
+    remote_src: true
+    creates: /usr/local/bin/vault
+  become: true
+
+- name: Set Vault binary permissions
+  ansible.builtin.file:
+    path: /usr/local/bin/vault
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Verify Git installation
+  ansible.builtin.command: git --version
+  register: git_version
+  changed_when: false
+
+- name: Display Git version
+  ansible.builtin.debug:
+    msg: "{{ git_version.stdout }}"
+
+- name: Verify jq installation
+  ansible.builtin.command: jq --version
+  register: jq_version
+  changed_when: false
+
+- name: Display jq version
+  ansible.builtin.debug:
+    msg: "{{ jq_version.stdout }}"
+
+- name: Verify Python 3.12 installation
+  ansible.builtin.command: python3.12 --version
+  register: python_version
+  changed_when: false
+
+- name: Display Python version
+  ansible.builtin.debug:
+    msg: "{{ python_version.stdout }}"
+
+- name: Verify Python 3.12 version
+  ansible.builtin.assert:
+    that:
+      - python_version.stdout is search('^Python 3\\.12\\.')
+    fail_msg: "Expected Python 3.12, got {{ python_version.stdout }}"
+    success_msg: "Python 3.12 verified"
+
+- name: Verify Node.js installation
+  ansible.builtin.command: node --version
+  register: node_version_output
+  changed_when: false
+
+- name: Verify Node.js version
+  ansible.builtin.assert:
+    that:
+      - node_version_output.stdout == "v" + nodejs_version
+    fail_msg: "Incorrect Node.js version installed"
+    success_msg: "Node.js {{ nodejs_version }} verified"
+
+- name: Verify Vault installation
+  ansible.builtin.command: vault version
+  register: vault_version_output
+  changed_when: false
+
+- name: Verify Vault version
+  ansible.builtin.assert:
+    that:
+      - vault_version_output.stdout is search('^Vault v' + vault_version + ' ')
+    fail_msg: "Expected Vault {{ vault_version }}, got {{ vault_version_output.stdout }}"
+    success_msg: "Vault {{ vault_version }} verified"

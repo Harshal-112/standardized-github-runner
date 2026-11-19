@@ -5,6 +5,7 @@ set -euo pipefail
 
 EXPECTED_NODE_MAJOR="${EXPECTED_NODE_MAJOR:-22}"
 EXPECTED_PYTHON_MINOR="${EXPECTED_PYTHON_MINOR:-3.12}"
+EXPECTED_VAULT_VERSION="${EXPECTED_VAULT_VERSION:-2.2.2}"
 
 echo "=================================="
 echo " Runner Environment Validation"
@@ -62,15 +63,29 @@ echo "[PASS] Node.js $EXPECTED_NODE_MAJOR"
 echo ""
 echo "[TEST] Python"
 
-python --version
+PYTHON_CMD="python3.12"
 
-PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+$PYTHON_CMD --version
+
+PYTHON_VERSION=$($PYTHON_CMD -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 
 test "$PYTHON_VERSION" = "$EXPECTED_PYTHON_MINOR"
 
-python -c "import json; data=json.loads('{\"status\":\"ok\"}'); assert data['status']=='ok'; print('Python functional test passed')"
+$PYTHON_CMD -c "import json; data=json.loads('{\"status\":\"ok\"}'); assert data['status']=='ok'; print('Python functional test passed')"
 
 echo "[PASS] Python $EXPECTED_PYTHON_MINOR"
+
+# 5. Vault version + functional test
+echo ""
+echo "[TEST] Vault"
+
+vault version
+
+VAULT_VERSION=$(vault version | awk '{print $2}' | sed 's/^v//')
+
+test "$VAULT_VERSION" = "$EXPECTED_VAULT_VERSION"
+
+echo "[PASS] Vault $VAULT_VERSION"
 
 echo ""
 echo "=================================="

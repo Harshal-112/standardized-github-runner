@@ -4,32 +4,21 @@ name: Runner Environment Validation
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 env:
   EXPECTED_NODE_MAJOR: "22"
   EXPECTED_PYTHON_MINOR: "3.12"
+  EXPECTED_VAULT_VERSION: "2.2.2"
 
 jobs:
   validate-runner:
-    name: Validate Required Tools
-    runs-on: ubuntu-latest
+    name: Validate Standardized Self-Hosted Runner
+    runs-on: [self-hosted, linux, x64]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Run tool validation
+      - name: Validate installed tools
         run: ./scripts/validate-tools.sh

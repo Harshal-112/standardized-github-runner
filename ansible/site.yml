@@ -1,0 +1,7 @@
+---
+- name: Configure standardized GitHub Actions runner
+  hosts: runner
+  become: true
+
+  roles:
+    - runner_setup
