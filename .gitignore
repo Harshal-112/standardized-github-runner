@@ -1,0 +1,10 @@
+# GitHub Actions runner installation and runtime data
+actions-runner/
+
+# Ansible temporary files
+*.retry
+
+# Python
+__pycache__/
+*.pyc
+.venv/
