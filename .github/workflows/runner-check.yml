@@ -1,0 +1,59 @@
+
+name: Runner Environment Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-runner:
+    name: Validate Required Tools
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Git
+        run: |
+          git --version
+          mkdir -p /tmp/runner-test
+          cd /tmp/runner-test
+          git init
+          git config user.name "Runner Test"
+          git config user.email "runner-test@example.com"
+          echo "Runner test" > test.txt
+          git add test.txt
+          git commit -m "Test commit"
+          echo "Git functional test passed"
+
+      - name: Check jq
+        run: |
+          jq --version
+          RESULT=$(echo '{"runner":"standardized","status":"ok"}' | jq -r '.status')
+          test "$RESULT" = "ok"
+          echo "jq functional test passed"
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check Node.js
+        run: |
+          node --version
+          node -e "console.log('Node.js execution test passed')"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check Python 3.12
+        run: |
+          python --version
+          python -c "print('Python execution test passed')"
+          python -c "import sys; assert sys.version_info[:2] == (3, 12)"
