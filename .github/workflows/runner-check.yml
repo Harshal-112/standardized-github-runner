@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  EXPECTED_NODE_MAJOR: "22"
+  EXPECTED_NODE_MAJOR: "99"
   EXPECTED_PYTHON_MINOR: "3.12"
 
 jobs:
