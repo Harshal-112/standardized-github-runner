@@ -1,0 +1,55 @@
+name: Node.js Example Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "examples/node-service/**"
+      - ".github/workflows/node-service.yml"
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test Node.js Service
+    runs-on: [self-hosted, linux, x64, ubuntu-24.04, standardized]
+
+    defaults:
+      run:
+        working-directory: examples/node-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify runner tool versions
+        run: |
+          node --version
+          npm --version
+          jq --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Read package version
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          echo "Package version: $PACKAGE_VERSION"
+
+      - name: Build application
+        run: npm run build
+
+      - name: Archive build output
+        run: |
+          tar -czf "node-service-${PACKAGE_VERSION}.tar.gz" dist/
+          tar -tzf "node-service-${PACKAGE_VERSION}.tar.gz"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-service-${{ env.PACKAGE_VERSION }}
+          path: examples/node-service/node-service-${{ env.PACKAGE_VERSION }}.tar.gz
