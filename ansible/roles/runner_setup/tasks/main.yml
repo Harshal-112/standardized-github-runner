@@ -1,3 +1,4 @@
+
 ---
 - name: Update APT package cache
   ansible.builtin.apt:
@@ -5,10 +6,11 @@
     cache_valid_time: 3600
   become: true
 
-- name: Install standard runner packages
+- name: Install pinned runner packages
   ansible.builtin.apt:
     name: "{{ runner_packages }}"
     state: present
+    allow_downgrade: true
   become: true
 
 - name: Create Node.js installation directory
@@ -18,12 +20,13 @@
     mode: "0755"
   become: true
 
-- name: Download Node.js archive
+- name: Download pinned Node.js archive
   ansible.builtin.get_url:
     url: "https://nodejs.org/dist/v{{ nodejs_version }}/node-v{{ nodejs_version }}-linux-x64.tar.xz"
     dest: "/tmp/node-v{{ nodejs_version }}-linux-x64.tar.xz"
     checksum: "sha256:cdeb8670a0c81f51b4dc4ac61919f9b1ad917b304bf8221eb939570663d240f8"
     mode: "0644"
+    force: false
   become: true
 
 - name: Extract Node.js archive
@@ -46,84 +49,138 @@
     - npx
   become: true
 
-- name: Download Vault archive
+- name: Download pinned Vault archive
   ansible.builtin.get_url:
     url: "https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_amd64.zip"
     dest: "/tmp/vault_{{ vault_version }}_linux_amd64.zip"
     checksum: "sha256:5700edf139113609962fe371af7d2a53de8ecb720d545dc39b43de204515d3c4"
     mode: "0644"
+    force: false
   become: true
 
-- name: Install Vault binary
+- name: Create versioned Vault directory
+  ansible.builtin.file:
+    path: "/opt/vault/{{ vault_version }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Extract Vault binary
   ansible.builtin.unarchive:
     src: "/tmp/vault_{{ vault_version }}_linux_amd64.zip"
-    dest: /usr/local/bin
+    dest: "/opt/vault/{{ vault_version }}"
     remote_src: true
-    creates: /usr/local/bin/vault
+    creates: "/opt/vault/{{ vault_version }}/vault"
   become: true
 
 - name: Set Vault binary permissions
   ansible.builtin.file:
-    path: /usr/local/bin/vault
+    path: "/opt/vault/{{ vault_version }}/vault"
     owner: root
     group: root
     mode: "0755"
   become: true
 
-- name: Verify Git installation
-  ansible.builtin.command: git --version
-  register: git_version
+- name: Link Vault executable
+  ansible.builtin.file:
+    src: "/opt/vault/{{ vault_version }}/vault"
+    dest: /usr/local/bin/vault
+    state: link
+    force: true
+  become: true
+
+- name: Verify installed tool versions
+  ansible.builtin.shell: |
+    set -e
+    git --version
+    curl --version | head -n 1
+    jq --version
+    tar --version | head -n 1
+    zip -v | head -n 2
+    unzip -v | head -n 1
+    make --version | head -n 1
+    node --version
+    npm --version
+    python3.12 --version
+    python3.12 -m pip --version
+    vault version
+    gh --version
+  args:
+    executable: /bin/bash
+  register: installed_tool_versions
   changed_when: false
 
-- name: Display Git version
+- name: Display installed tool versions
   ansible.builtin.debug:
-    msg: "{{ git_version.stdout }}"
+    var: installed_tool_versions.stdout_lines
 
-- name: Verify jq installation
-  ansible.builtin.command: jq --version
-  register: jq_version
-  changed_when: false
 
-- name: Display jq version
-  ansible.builtin.debug:
-    msg: "{{ jq_version.stdout }}"
-
-- name: Verify Python 3.12 installation
-  ansible.builtin.command: python3.12 --version
-  register: python_version
-  changed_when: false
-
-- name: Display Python version
-  ansible.builtin.debug:
-    msg: "{{ python_version.stdout }}"
-
-- name: Verify Python 3.12 version
-  ansible.builtin.assert:
-    that:
-      - python_version.stdout is search('^Python 3\\.12\\.')
-    fail_msg: "Expected Python 3.12, got {{ python_version.stdout }}"
-    success_msg: "Python 3.12 verified"
-
-- name: Verify Node.js installation
+- name: Check Node.js version
   ansible.builtin.command: node --version
   register: node_version_output
   changed_when: false
 
-- name: Verify Node.js version
+- name: Verify Node.js exact version
   ansible.builtin.assert:
     that:
       - node_version_output.stdout == "v" + nodejs_version
-    fail_msg: "Incorrect Node.js version installed"
-    success_msg: "Node.js {{ nodejs_version }} verified"
+    fail_msg: "Expected Node.js v{{ nodejs_version }}, got {{ node_version_output.stdout }}"
+    success_msg: "Node.js version verified"
 
-- name: Verify Vault installation
+- name: Check npm version
+  ansible.builtin.command: npm --version
+  register: npm_version_output
+  changed_when: false
+
+- name: Verify npm exact version
+  ansible.builtin.assert:
+    that:
+      - npm_version_output.stdout == npm_version
+    fail_msg: "Expected npm {{ npm_version }}, got {{ npm_version_output.stdout }}"
+    success_msg: "npm version verified"
+
+- name: Check Vault version
   ansible.builtin.command: vault version
   register: vault_version_output
   changed_when: false
 
-- name: Verify Vault version
+- name: Verify Vault exact version
   ansible.builtin.assert:
     that:
       - vault_version_output.stdout is search('^Vault v' + vault_version + ' ')
     fail_msg: "Expected Vault {{ vault_version }}, got {{ vault_version_output.stdout }}"
-    success_msg: "Vault {{ vault_version }} verified"
+    success_msg: "Vault version verified"
+
+- name: Verify exact APT package versions
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - -W
+      - "-f=${Version}"
+      - "{{ item.name }}"
+  register: package_version_checks
+  changed_when: false
+  failed_when: >
+    package_version_checks.rc != 0 or
+    package_version_checks.stdout != item.version
+  loop:
+    - { name: git, version: "1:2.43.0-1ubuntu7.4" }
+    - { name: curl, version: "8.5.0-2ubuntu10.16" }
+    - { name: jq, version: "1.7.1-3ubuntu0.24.04.2" }
+    - { name: tar, version: "1.35+dfsg-3ubuntu0.4" }
+    - { name: zip, version: "3.0-13ubuntu0.2" }
+    - { name: unzip, version: "6.0-28ubuntu4.1" }
+    - { name: make, version: "4.3-4.1build2" }
+    - { name: python3.12, version: "3.12.3-1ubuntu0.17" }
+    - { name: python3.12-venv, version: "3.12.3-1ubuntu0.17" }
+    - { name: python3-pip, version: "24.0+dfsg-1ubuntu1.3" }
+    - { name: gh, version: "2.45.0-1ubuntu0.3" }
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Report verified package versions
+  ansible.builtin.debug:
+    msg: "{{ item.item.name }}: {{ item.stdout }}"
+  loop: "{{ package_version_checks.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

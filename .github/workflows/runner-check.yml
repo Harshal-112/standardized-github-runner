@@ -3,18 +3,14 @@ name: Runner Environment Validation
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
-
-env:
-  EXPECTED_NODE_MAJOR: "22"
-  EXPECTED_PYTHON_MINOR: "3.12"
-  EXPECTED_VAULT_VERSION: "2.2.2"
 
 jobs:
   validate-runner:
     name: Validate Standardized Self-Hosted Runner
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, linux, x64, ubuntu-24.04, standardized]
 
     steps:
       - name: Checkout repository
